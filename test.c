@@ -9,6 +9,7 @@ int main(void) {
 		" - Fine\n"
 		" - Good\n"
 		" - Well\n"
+		"\n"
 		"Cool software:\n"
 		"1. GCC\n"
 		"2. Linux\n"

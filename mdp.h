@@ -9,11 +9,13 @@
 #include <ctype.h>
 
 typedef enum {
+	MDP_TOK_EOF,
 	MDP_TOK_HEADING,
 	MDP_TOK_ORD_LIST,
 	MDP_TOK_UNORD_LIST,
 	MDP_TOK_QUOTE,
 	MDP_TOK_2NL,
+
 	_MDP_TOK_INLINE_START,
 	MDP_TOK_STRONG,
 	MDP_TOK_EMPHASIS,
@@ -21,7 +23,6 @@ typedef enum {
 	MDP_TOK_CHAR,
 	MDP_TOK_NL,
 	_MDP_TOK_INLINE_END,
-	MDP_TOK_EOF,
 } MDP_TokenKind;
 
 typedef struct {
@@ -80,7 +81,7 @@ struct MDP_Node {
 	for (MDP_Node *vn = list; vn; vn = vn->next)
 
 MDP_Tokens mdp_lex(const char *char_stream);
-MDP_Node *mdp_parse(MDP_Tokens *toks);
+MDP_Node *mdp_parse(MDP_Tokens *tokens);
 
 #endif // MDP_H_
 
@@ -266,12 +267,22 @@ MDP_Node *_mdp_parse(MDP_Parser *p, bool is_inline);
 
 MDP_Node *_mdp_parse_paragraph(MDP_Parser *p) {
 	MDP_Node *n = node(MDP_NODE_PARAGRAPH, 0);
-	while (_mdp_is_tok_inline(peek(p)))
-		_mdp_node_append(&n->body, _mdp_parse(p, true));
-	if (peek(p).kind == MDP_TOK_2NL) {
-		_mdp_node_append(&n->body, node(MDP_NODE_NL, 0));
-		next(p);
+	MDP_Node *prev1 = NULL, *prev2 = NULL;
+	while (_mdp_is_tok_inline(peek(p))) {
+		MDP_Node *c = _mdp_parse(p, true);
+		_mdp_node_append(&n->body, c);
+		prev1 = prev2;
+		prev2 = c;
 	}
+	// remove excess line breaks
+	if (prev1 != NULL && prev2 != NULL) {
+		if (prev2->kind == MDP_NODE_NL) {
+			prev1->next = NULL;
+			free(prev2);
+		}
+	}
+	if (peek(p).kind == MDP_TOK_2NL)
+		next(p);
 	return n;
 }
 
@@ -297,7 +308,7 @@ MDP_Node *_mdp_parse(MDP_Parser *p, bool is_inline) {
 				.as.heading.level = level);
 			while (_mdp_is_tok_inline(peek(p))) {
 				MDP_Node *c = _mdp_parse(p, true);
-				if (c->kind == MDP_NODE_NL) break;
+				if (c->kind == MDP_NODE_NL) { free(c); break; }
 				_mdp_node_append(&n->as.heading.title, c);
 			}
 			while (
@@ -313,11 +324,21 @@ MDP_Node *_mdp_parse(MDP_Parser *p, bool is_inline) {
 
 		case MDP_TOK_QUOTE: {
 			MDP_Node *n = node(MDP_NODE_QUOTE, 0);
+			MDP_Node *prev1 = NULL, *prev2 = NULL;
 			while (peek(p).kind == MDP_TOK_QUOTE) {
 				next(p);
 				while (_mdp_is_tok_inline(peek(p))) {
 					MDP_Node *c = _mdp_parse(p, true);
 					_mdp_node_append(&n->body, c);
+					prev1 = prev2;
+					prev2 = c;
+				}
+			}
+			// remove excess line breaks
+			if (prev1 != NULL && prev2 != NULL) {
+				if (prev2->kind == MDP_NODE_NL) {
+					prev1->next = NULL;
+					free(prev2);
 				}
 			}
 			return n;
