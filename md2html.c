@@ -97,7 +97,7 @@ void markdown_to_html(FILE *f, MDP_Node *n, int it, int lv) {
 			"padding: 8px;";
 		fiprintf(f, it, "<div style=\"%s\"><pre style=\"margin: 0;\"><code>%s",
 			style, n->as.block_code.code);
-		fiprintf(f, it, "</code></pre></div>\n");
+		fprintf(f, "</code></pre></div>\n");
 		break;
 	case MDP_NODE_ORD_LIST_ITEM:
 		markdown_to_html(f, n->body, it, lv);
@@ -121,17 +121,20 @@ void markdown_to_html(FILE *f, MDP_Node *n, int it, int lv) {
 }
 
 int main(int argc, char *argv[]) {
-	if (argc != 3) return 1;
+	if (argc != 3) {
+		printf("Not enought arguments\n");
+		return 1;
+	}
 
-	MDP_Tokens toks = mdp_lex(read_file(argv[1]));
-	MDP_Node *doc = mdp_parse(&toks);
-
+	char *input = read_file(argv[1]);
 	FILE *fp = fopen(argv[2], "w");
-    if (fp == NULL) {
+    if (fp == NULL || input == NULL) {
         printf("Error opening file\n");
         return 1;
     }
 
+	MDP_Token *toks = mdp_lex(input);
+	MDP_Node *doc = mdp_parse(toks);
 	markdown_to_html(fp, doc, 0, 4);
 	fclose(fp);
 	return 0;
