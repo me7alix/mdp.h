@@ -474,8 +474,11 @@ MDP_Node *_mdp_parse(MDP_Parser *p, bool is_inline) {
 		case MDP_TOK_BEG_LINK: {
 			MDP_Node *n = node(MDP_NODE_LINK, 0);
 			next(p);
-			while (peek(p).kind != MDP_TOK_END_LINK)
-				_mdp_node_append(&n->body, _mdp_parse(p, true));
+			while (peek(p).kind != MDP_TOK_END_LINK) {
+				MDP_Node *c = _mdp_parse(p, false);
+				if (!c) continue;
+				_mdp_node_append(&n->body, c);
+			}
 			next(p);
 			if (!is_chr(p, '('))
 				return NULL;
@@ -523,6 +526,7 @@ MDP_Node *_mdp_parse(MDP_Parser *p, bool is_inline) {
 				peek(p).kind != MDP_TOK_EOF
 			) {
 				MDP_Node *c = _mdp_parse(p, true);
+				if (!c) continue;
 				_mdp_node_append(&n->body, c);
 			}
 			next(p);
@@ -537,7 +541,7 @@ MDP_Node *_mdp_parse(MDP_Parser *p, bool is_inline) {
 			if (is_chr(p, '!') && peek2(p).kind == MDP_TOK_BEG_LINK) {
 				next(p);
 				MDP_Node *n = _mdp_parse(p, true);
-				n->kind = MDP_NODE_IMAGE;
+				if (n) n->kind = MDP_NODE_IMAGE;
 				return n;
 			}
 
