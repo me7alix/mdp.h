@@ -17,6 +17,8 @@ typedef enum {
 	MDP_TOK_QUOTE,
 	MDP_TOK_2NL,
 	_MDP_TOK_INLINE_START,
+	MDP_TOK_BEG_LINK,
+	MDP_TOK_END_LINK,
 	MDP_TOK_STRONG,
 	MDP_TOK_EMPHASIS,
 	MDP_TOK_INLINE_CODE,
@@ -33,7 +35,7 @@ typedef struct {
 			const char *code;
 		} block_code;
 		const char *inline_code;
-		char character;
+		char chr;
 		unsigned data;
 	} as;
 } MDP_Token;
@@ -54,6 +56,8 @@ typedef enum {
 	MDP_NODE_QUOTE,
 
 /* Inline */
+	MDP_NODE_LINK,
+	MDP_NODE_IMAGE,
 	MDP_NODE_STRONG,
 	MDP_NODE_EMPHASIS,
 	MDP_NODE_INLINE_CODE,
@@ -79,6 +83,10 @@ struct MDP_Node {
 			const char *lang;
 			const char *code;
 		} block_code;
+		struct {
+			const char *link;
+			const char *desc;
+		} link;
 		unsigned idx;
 		const char *inline_code;
 		const char *text;
@@ -134,7 +142,7 @@ MDP_Token *mdp_lex(const char *stream) {
 	goto start;
 
 #define append(kd, ch) \
-	_mdp_tokens_append(&toks, (MDP_Token){.kind = kd, .as.character = ch})
+	_mdp_tokens_append(&toks, (MDP_Token){.kind = kd, .as.chr = ch})
 #define append_data(kd, dt) \
 	_mdp_tokens_append(&toks, (MDP_Token){.kind = kd, .as.data = dt});
 #define CHN() stream[count++]
@@ -146,13 +154,22 @@ MDP_Token *mdp_lex(const char *stream) {
 		case '\0':
 			goto finish;
 
+		case '[':
+			append(MDP_TOK_BEG_LINK, CHN());
+			break;
+
+		case ']':
+			append(MDP_TOK_END_LINK, CHN());
+			break;
+
 		case '`':
 			CHN();
 			if (CHI(0) == '`' && CHI(1) == '`') {
 				CHN(); CHN();
 				_MDP_DA(char) lang = {0};
-				while (CHP() != '\n')
+				while (CHP() != '\n' && CHP() != '\0')
 					_mdp_da_append(&lang, CHN());
+				_mdp_da_append(&lang, '\0');
 				CHN();
 
 				_MDP_DA(char) code = {0};
@@ -288,7 +305,7 @@ void mdp_dump_tokens(MDP_Token *toks) {
 			printf("ORD_LIST(%u)\n", toks[i].as.data);
 			break;
 		case MDP_TOK_CHAR:
-			char ch = toks[i].as.character;
+			char ch = toks[i].as.chr;
 			if (ch == '\n') printf("CHAR(NL)\n");
 			else printf("CHAR(%c)\n", ch);
 		}
@@ -300,6 +317,8 @@ void mdp_dump_tokens(MDP_Token *toks) {
 #define next(p) (p)->tokens[(p)->count++]
 #define peek(p) (p)->tokens[(p)->count]
 #define peek2(p) (p)->tokens[(p)->count+1]
+#define is_chr(p, ch) \
+	(peek(p).kind == MDP_TOK_CHAR && peek(p).as.chr == (ch))
 
 #define node(kind, ...) _mdp_node(kind, &(MDP_Node){__VA_ARGS__})
 MDP_Node *_mdp_node(MDP_NodeKind kind, MDP_Node *node) {
@@ -343,6 +362,7 @@ MDP_Node *_mdp_parse_paragraph(MDP_Parser *p) {
 	bool is_empty = true;
 	while (_mdp_is_tok_inline(peek(p))) {
 		MDP_Node *c = _mdp_parse(p, true);
+		if (!c) continue;
 		if (c->kind != MDP_NODE_NL) is_empty = false;
 		if (!is_empty) _mdp_node_append(&n->body, c);
 		bf_last = last;
@@ -359,7 +379,7 @@ MDP_Node *_mdp_parse_paragraph(MDP_Parser *p) {
 MDP_Node *_mdp_parse_text(MDP_Parser *p) {
 	_MDP_DA(char) sb = {0};
 	while (peek(p).kind == MDP_TOK_CHAR)
-		_mdp_da_append(&sb, next(p).as.character);
+		_mdp_da_append(&sb, next(p).as.chr);
 	_mdp_da_append(&sb, '\0');
 	return node(MDP_NODE_TEXT, .as.text = sb.items);
 }
@@ -374,6 +394,7 @@ MDP_Node *_mdp_parse(MDP_Parser *p, bool is_inline) {
 				.as.heading.level = level);
 			while (_mdp_is_tok_inline(peek(p))) {
 				MDP_Node *c = _mdp_parse(p, true);
+				if (!c) continue;
 				if (c->kind == MDP_NODE_NL) { free(c); break; }
 				_mdp_node_append(&n->as.heading.title, c);
 			}
@@ -383,6 +404,7 @@ MDP_Node *_mdp_parse(MDP_Parser *p, bool is_inline) {
 				peek(p).kind != MDP_TOK_EOF
 			) {
 				MDP_Node *c = _mdp_parse(p, false);
+				if (!c) continue;
 				_mdp_node_append(&n->body, c);
 			}
 			return n;
@@ -402,6 +424,7 @@ MDP_Node *_mdp_parse(MDP_Parser *p, bool is_inline) {
 				next(p);
 				while (_mdp_is_tok_inline(peek(p))) {
 					MDP_Node *c = _mdp_parse(p, true);
+					if (!c) continue;
 					_mdp_node_append(&n->body, c);
 					bf_last = last;
 					last = c;
@@ -419,6 +442,7 @@ MDP_Node *_mdp_parse(MDP_Parser *p, bool is_inline) {
 			while (peek(p).kind == MDP_TOK_UNORD_LIST) {
 				next(p);
 				MDP_Node *c = _mdp_parse(p, false);
+				if (!c) continue;
 				_mdp_node_append(&n->body, c);
 			}
 			return n;
@@ -428,11 +452,13 @@ MDP_Node *_mdp_parse(MDP_Parser *p, bool is_inline) {
 			MDP_Node *n = node(MDP_NODE_ORD_LIST, 0);
 			while (peek(p).kind == MDP_TOK_ORD_LIST) {
 				unsigned idx = next(p).as.data;
+				MDP_Node *c = _mdp_parse(p, false);
+				if (!c) continue;
 				_mdp_node_append(
 					&n->body,
 					node(MDP_NODE_ORD_LIST_ITEM,
 						.as.idx = idx,
-						.body = _mdp_parse(p, false)
+						.body = c,
 					)
 				);
 			}
@@ -444,11 +470,49 @@ MDP_Node *_mdp_parse(MDP_Parser *p, bool is_inline) {
 		}
 	} else {
 		switch (peek(p).kind) {
+		/* [n->body](n->as.link) */
+		case MDP_TOK_BEG_LINK: {
+			MDP_Node *n = node(MDP_NODE_LINK, 0);
+			next(p);
+			while (peek(p).kind != MDP_TOK_END_LINK)
+				_mdp_node_append(&n->body, _mdp_parse(p, true));
+			next(p);
+			if (!is_chr(p, '('))
+				return NULL;
+			next(p);
+			_MDP_DA(char) link = {0};
+			_MDP_DA(char) desc = {0};
+			while (peek(p).kind == MDP_TOK_CHAR) {
+				if (peek(p).as.chr == ')') break;
+				if (peek(p).as.chr == '"') {
+					next(p);
+					while (peek(p).kind == MDP_TOK_CHAR) {
+						if (peek(p).as.chr == '"') break;
+						_mdp_da_append(&desc, next(p).as.chr);
+					}
+					next(p);
+				} else {
+					_mdp_da_append(&link, next(p).as.chr);
+				}
+			}
+			_mdp_da_append(&link, '\0');
+			_mdp_da_append(&desc, '\0');
+			n->as.link.link = link.items;
+			n->as.link.desc = desc.items;
+			if (!is_chr(p, ')'))
+				return NULL;
+			next(p);
+			return n;
+		}
+
+		/* `n->body` */
 		case MDP_TOK_INLINE_CODE:
 			return node(MDP_NODE_INLINE_CODE,
 				.as.inline_code = next(p).as.inline_code);
+
+		/* __n->body__ | _n->body_ */
 		case MDP_TOK_STRONG:
-		case MDP_TOK_EMPHASIS:
+		case MDP_TOK_EMPHASIS: {
 			MDP_TokenKind kind = peek(p).kind;
 			MDP_NodeKind nk =
 				kind == MDP_TOK_STRONG   ? MDP_NODE_STRONG   :
@@ -463,14 +527,25 @@ MDP_Node *_mdp_parse(MDP_Parser *p, bool is_inline) {
 			}
 			next(p);
 			return n;
+		}
+
 		case MDP_TOK_NL:
 			next(p);
 			return node(MDP_NODE_NL, 0);
+
 		case MDP_TOK_CHAR:
+			if (is_chr(p, '!') && peek2(p).kind == MDP_TOK_BEG_LINK) {
+				next(p);
+				MDP_Node *n = _mdp_parse(p, true);
+				n->kind = MDP_NODE_IMAGE;
+				return n;
+			}
+
 			return _mdp_parse_text(p);
 		}
 	}
 
+	next(p);
 	return NULL;
 }
 
@@ -482,23 +557,33 @@ MDP_Node *mdp_parse(MDP_Token *stream) {
 	return doc;
 }
 
-void mdp_dump_tree(MDP_Node *n, int intend, int level) {
-	printf("%*s", intend, "");
+void mdp_dump_tree(MDP_Node *n, int it, int lv) {
+	printf("%*s", it, "");
 	switch (n->kind) {
 	case MDP_NODE_DOC:
 		printf("Document:\n");
 		mdp_node_foreach (c, n->body)
-			mdp_dump_tree(c, intend + level, level);
+			mdp_dump_tree(c, it + lv, lv);
 		break;
 	case MDP_NODE_STRONG:
 		printf("Strong:\n");
 		mdp_node_foreach (c, n->body)
-			mdp_dump_tree(c, intend + level, level);
+			mdp_dump_tree(c, it + lv, lv);
+		break;
+	case MDP_NODE_IMAGE:
+		printf("Image(%s|%s):\n", n->as.link.link, n->as.link.desc);
+		mdp_node_foreach (c, n->body)
+			mdp_dump_tree(c, it + lv, lv);
+		break;
+	case MDP_NODE_LINK:
+		printf("Link(%s|%s):\n", n->as.link.link, n->as.link.desc);
+		mdp_node_foreach (c, n->body)
+			mdp_dump_tree(c, it + lv, lv);
 		break;
 	case MDP_NODE_EMPHASIS:
 		printf("Emphasis:\n");
 		mdp_node_foreach (c, n->body)
-			mdp_dump_tree(c, intend + level, level);
+			mdp_dump_tree(c, it + lv, lv);
 		break;
 	case MDP_NODE_INLINE_CODE:
 		printf("InlineCode: %s\n", n->as.inline_code);
@@ -506,22 +591,22 @@ void mdp_dump_tree(MDP_Node *n, int intend, int level) {
 	case MDP_NODE_PARAGRAPH:
 		printf("Paragraph:\n");
 		mdp_node_foreach (c, n->body)
-			mdp_dump_tree(c, intend + level, level);
+			mdp_dump_tree(c, it + lv, lv);
 		break;
 	case MDP_NODE_UNORD_LIST:
 		printf("UnordList:\n");
 		mdp_node_foreach (c, n->body)
-			mdp_dump_tree(c, intend + level, level);
+			mdp_dump_tree(c, it + lv, lv);
 		break;
 	case MDP_NODE_QUOTE:
 		printf("Quote:\n");
 		mdp_node_foreach (c, n->body)
-			mdp_dump_tree(c, intend + level, level);
+			mdp_dump_tree(c, it + lv, lv);
 		break;
 	case MDP_NODE_ORD_LIST:
 		printf("OrdList:\n");
 		mdp_node_foreach (c, n->body)
-			mdp_dump_tree(c, intend + level, level);
+			mdp_dump_tree(c, it + lv, lv);
 		break;
 	case MDP_NODE_BLOCK_CODE:
 		printf("BlockCode(%s):\n", n->as.block_code.lang);
@@ -529,16 +614,16 @@ void mdp_dump_tree(MDP_Node *n, int intend, int level) {
 		break;
 	case MDP_NODE_ORD_LIST_ITEM:
 		printf("OrdListItem(%u):\n", n->as.idx);
-		mdp_dump_tree(n->body, intend + level, level);
+		mdp_dump_tree(n->body, it + lv, lv);
 		break;
 	case MDP_NODE_HEADING:
 		printf("Heading(%u):\n", n->as.heading.level);
-		printf("%*sTitle:\n", intend + level, "");
+		printf("%*sTitle:\n", it + lv, "");
 		mdp_node_foreach (c, n->as.heading.title)
-			mdp_dump_tree(c, intend + level * 2, level);
-		printf("%*sBody:\n", intend + level, "");
+			mdp_dump_tree(c, it + lv * 2, lv);
+		printf("%*sBody:\n", it + lv, "");
 		mdp_node_foreach (c, n->body)
-			mdp_dump_tree(c, intend + level * 2, level);
+			mdp_dump_tree(c, it + lv * 2, lv);
 		break;
 	case MDP_NODE_NL:
 		printf("NewLine\n");
@@ -551,6 +636,7 @@ void mdp_dump_tree(MDP_Node *n, int intend, int level) {
 #undef next
 #undef peek
 #undef peek2
+#undef is_chr
 #undef node
 
 #endif // MDP_IMPLEMENTATION

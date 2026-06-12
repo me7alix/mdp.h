@@ -34,15 +34,17 @@ char *read_file(const char *filename) {
 
 void markdown_to_html(FILE *f, MDP_Node *n, int it, int lv) {
 	switch (n->kind) {
-	case MDP_NODE_DOC:
-		fiprintf(f, it, "%*s", it, "");
+	case MDP_NODE_DOC: {
+		const char *style =
+			"margin-left: 17%;\n"
+			"margin-right: 17%;\n";
 		fiprintf(f, it, "<!DOCTYPE html>\n");
-		fiprintf(f, it, "<body>\n");
+		fiprintf(f, it, "<body style=\"%s\">\n", style);
 		mdp_node_foreach (c, n->body)
 			markdown_to_html(f, c, it+lv, lv);
 		fiprintf(f, it, "</body>\n");
 		fiprintf(f, it, "</html>");
-		break;
+	} break;
 	case MDP_NODE_STRONG:
 		fprintf(f, "<strong>");
 		mdp_node_foreach (c, n->body)
@@ -89,6 +91,21 @@ void markdown_to_html(FILE *f, MDP_Node *n, int it, int lv) {
 			fiprintf(f, it, "</li>\n");
 		}
 		fiprintf(f, it, "</ol>\n");
+		break;
+	case MDP_NODE_IMAGE:
+		fprintf(f,
+			"<img src=\"%s\" title=\"%s\" style=\"width:100%;\"></img>",
+			n->as.link.link,
+			n->as.link.desc);
+		break;
+	case MDP_NODE_LINK:
+		fprintf(f,
+			"<a href=\"%s\" title=\"%s\">",
+			n->as.link.link,
+			n->as.link.desc);
+		mdp_node_foreach (c, n->body)
+			markdown_to_html(f, c, it + lv, lv);
+		fprintf(f, "</a>");
 		break;
 	case MDP_NODE_BLOCK_CODE:
 		const char *style =
