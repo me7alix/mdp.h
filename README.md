@@ -12,6 +12,7 @@ A small single-header Markdown parser written in C.
 * Bold (`**text**` / `__text__`)
 * Emphasis (`*text*` / `_text_`)
 * Paragraph and newline handling
+* Links (`[text](link)`) and images
 * AST generation for custom processing
 
 ## Installation

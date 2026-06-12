@@ -36,8 +36,9 @@ void markdown_to_html(FILE *f, MDP_Node *n, int it, int lv) {
 	switch (n->kind) {
 	case MDP_NODE_DOC: {
 		const char *style =
-			"margin-left: 17%;\n"
-			"margin-right: 17%;\n";
+			"zoom: 130%;"
+			"margin-left: 17%;"
+			"margin-right: 17%;";
 		fiprintf(f, it, "<!DOCTYPE html>\n");
 		fiprintf(f, it, "<body style=\"%s\">\n", style);
 		mdp_node_foreach (c, n->body)
