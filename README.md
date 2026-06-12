@@ -36,13 +36,13 @@ In all other files:
 ### Lex Markdown
 
 ```c
-MDP_Tokens tokens = mdp_lex(markdown_source);
+MDP_Token *tokens = mdp_lex(markdown_source);
 ```
 
 ### Parse Markdown
 
 ```c
-MDP_Node *document = mdp_parse(&tokens);
+MDP_Node *document = mdp_parse(tokens);
 ```
 
 ### Debug Token Output
@@ -68,8 +68,8 @@ const char *markdown =
     "- Item 1\n"
     "- Item 2\n";
 
-MDP_Tokens tokens = mdp_lex(markdown);
-MDP_Node *doc = mdp_parse(&tokens);
+MDP_Token *tokens = mdp_lex(markdown);
+MDP_Node *doc = mdp_parse(tokens);
 
 mdp_dump_tree(doc, 0, 2);
 ```
@@ -85,7 +85,7 @@ $ ./md2html README.md index.html
 ### Lexer
 
 ```c
-MDP_Tokens mdp_lex(const char *char_stream);
+MDP_Token *mdp_lex(const char *stream);
 ```
 
 Converts a Markdown string into a token stream.
@@ -93,7 +93,7 @@ Converts a Markdown string into a token stream.
 ### Parser
 
 ```c
-MDP_Node *mdp_parse(MDP_Tokens *tokens);
+MDP_Node *mdp_parse(MDP_Token *stream);
 ```
 
 Builds an abstract syntax tree (AST) from a token stream.

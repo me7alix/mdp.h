@@ -39,13 +39,7 @@ typedef struct {
 } MDP_Token;
 
 typedef struct {
-	MDP_Token *items;
-	size_t count;
-	size_t capacity;
-} MDP_Tokens;
-
-typedef struct {
-	MDP_Tokens *tokens;
+	MDP_Token *tokens;
 	size_t count;
 } MDP_Parser;
 
@@ -94,8 +88,8 @@ struct MDP_Node {
 #define mdp_node_foreach(vn, list) \
 	for (MDP_Node *vn = list; vn; vn = vn->next)
 
-MDP_Tokens mdp_lex(const char *char_stream);
-MDP_Node *mdp_parse(MDP_Tokens *tokens);
+MDP_Token *mdp_lex(const char *stream);
+MDP_Node *mdp_parse(MDP_Token *stream);
 
 #endif // MDP_H_
 
@@ -128,12 +122,14 @@ MDP_Node *mdp_parse(MDP_Tokens *tokens);
 
 /* Lexer stage */
 
-void _mdp_tokens_append(MDP_Tokens *toks, MDP_Token tok) {
+typedef _MDP_DA(MDP_Token) _MDP_Tokens;
+
+void _mdp_tokens_append(_MDP_Tokens *toks, MDP_Token tok) {
 	_mdp_da_append(toks, tok);
 }
 
-MDP_Tokens mdp_lex(const char *char_stream) {
-	MDP_Tokens toks = {0};
+MDP_Token *mdp_lex(const char *stream) {
+	_MDP_Tokens toks = {0};
 	size_t count = 0;
 	goto start;
 
@@ -141,9 +137,9 @@ MDP_Tokens mdp_lex(const char *char_stream) {
 	_mdp_tokens_append(&toks, (MDP_Token){.kind = kd, .as.character = ch})
 #define append_data(kd, dt) \
 	_mdp_tokens_append(&toks, (MDP_Token){.kind = kd, .as.data = dt});
-#define CHN() char_stream[count++]
-#define CHP() char_stream[count]
-#define CHI(i) char_stream[count+i]
+#define CHN() stream[count++]
+#define CHP() stream[count]
+#define CHI(i) stream[count+i]
 
 	while (true) {
 		switch (CHP()) {
@@ -270,12 +266,12 @@ finish:
 #undef CHP
 #undef CHI
 
-	return toks;
+	return toks.items;
 }
 
-void mdp_dump_tokens(MDP_Tokens toks) {
-	for (size_t i = 0; i < toks.count; i++) {
-		switch (toks.items[i].kind) {
+void mdp_dump_tokens(MDP_Token *toks) {
+	for (size_t i = 0; toks[i].kind != MDP_TOK_EOF; i++) {
+		switch (toks[i].kind) {
 		case MDP_TOK_STRONG:      printf("STRONG\n");      break;
 		case MDP_TOK_NL:          printf("NL\n");          break;
 		case MDP_TOK_2NL:         printf("2NL\n");         break;
@@ -286,13 +282,13 @@ void mdp_dump_tokens(MDP_Tokens toks) {
 		case MDP_TOK_UNORD_LIST:  printf("UNORD_LIST\n");  break;
 		case MDP_TOK_EOF:         printf("EOF\n");         break;
 		case MDP_TOK_HEADING:
-			printf("HEADING(%u)\n", toks.items[i].as.data);
+			printf("HEADING(%u)\n", toks[i].as.data);
 			break;
 		case MDP_TOK_ORD_LIST:
-			printf("ORD_LIST(%u)\n", toks.items[i].as.data);
+			printf("ORD_LIST(%u)\n", toks[i].as.data);
 			break;
 		case MDP_TOK_CHAR:
-			char ch = toks.items[i].as.character;
+			char ch = toks[i].as.character;
 			if (ch == '\n') printf("CHAR(NL)\n");
 			else printf("CHAR(%c)\n", ch);
 		}
@@ -301,9 +297,9 @@ void mdp_dump_tokens(MDP_Tokens toks) {
 
 /* Parser stage */
 
-#define next(p) (p)->tokens->items[(p)->count++]
-#define peek(p) (p)->tokens->items[(p)->count]
-#define peek2(p) (p)->tokens->items[(p)->count+1]
+#define next(p) (p)->tokens[(p)->count++]
+#define peek(p) (p)->tokens[(p)->count]
+#define peek2(p) (p)->tokens[(p)->count+1]
 
 #define node(kind, ...) _mdp_node(kind, &(MDP_Node){__VA_ARGS__})
 MDP_Node *_mdp_node(MDP_NodeKind kind, MDP_Node *node) {
@@ -475,11 +471,11 @@ MDP_Node *_mdp_parse(MDP_Parser *p, bool is_inline) {
 		}
 	}
 
-	assert(!"nothing returned");
+	return NULL;
 }
 
-MDP_Node *mdp_parse(MDP_Tokens *toks) {
-	MDP_Parser p = {.tokens = toks};
+MDP_Node *mdp_parse(MDP_Token *stream) {
+	MDP_Parser p = {.tokens = stream};
 	MDP_Node *doc = node(MDP_NODE_DOC, 0);
 	while (peek(&p).kind != MDP_TOK_EOF)
 		_mdp_node_append(&doc->body, _mdp_parse(&p, false));
