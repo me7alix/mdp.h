@@ -14,6 +14,7 @@ typedef enum {
 	MDP_TOK_ORD_LIST,
 	MDP_TOK_BLOCK_CODE,
 	MDP_TOK_UNORD_LIST,
+	MDP_TOK_HOR_RULE,
 	MDP_TOK_QUOTE,
 	MDP_TOK_2NL,
 	_MDP_TOK_INLINE_START,
@@ -53,6 +54,7 @@ typedef enum {
 	MDP_NODE_ORD_LIST,
 	MDP_NODE_UNORD_LIST,
 	MDP_NODE_BLOCK_CODE,
+	MDP_NODE_HOR_RULE,
 	MDP_NODE_QUOTE,
 
 /* Inline */
@@ -253,7 +255,12 @@ MDP_Token *mdp_lex(const char *stream) {
 				break;
 
 			case '-':
-				append(MDP_TOK_UNORD_LIST, CHN());
+				if (CHI(1) == '-' && CHI(2) == '-') {
+					CHN(); CHN();
+					append(MDP_TOK_HOR_RULE, CHN());
+				} else {
+					append(MDP_TOK_UNORD_LIST, CHN());
+				}
 				while (CHP() == ' ') CHN();
 				break;
 
@@ -423,6 +430,11 @@ MDP_Node *_mdp_parse(MDP_Parser *p, bool is_inline) {
 				.as.block_code.lang = peek(p).as.block_code.lang,
 				.as.block_code.code = next(p).as.block_code.code,
 			);
+		}
+
+		case MDP_TOK_HOR_RULE: {
+			next(p);
+			return node(MDP_NODE_HOR_RULE, 0);
 		}
 
 		case MDP_TOK_QUOTE: {

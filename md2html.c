@@ -99,6 +99,9 @@ void markdown_to_html(FILE *f, MDP_Node *n, int it, int lv) {
 			n->as.link.link,
 			n->as.link.desc);
 		break;
+	case MDP_NODE_HOR_RULE:
+		fprintf(f, "<br/><hr/>");
+		break;
 	case MDP_NODE_LINK:
 		fprintf(f,
 			"<a href=\"%s\" title=\"%s\">",
