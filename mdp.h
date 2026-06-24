@@ -533,6 +533,11 @@ MDP_Node *_mdp_parse(MDP_Parser *p, bool is_inline) {
 			return n;
 		}
 
+		case MDP_TOK_HOR_RULE: {
+			next(p);
+			return node(MDP_NODE_HOR_RULE, 0);
+		}
+
 		case MDP_TOK_IMAGE: {
 			next(p);
 			MDP_Node *n = _mdp_parse_link(p);
