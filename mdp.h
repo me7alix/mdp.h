@@ -371,8 +371,6 @@ void mdp_dump_tokens(MDP_Token *toks) {
 #define next(p) (p)->tokens[(p)->count++]
 #define peek(p) (p)->tokens[(p)->count]
 #define peek2(p) (p)->tokens[(p)->count+1]
-#define is_chr(p, ch) \
-	(peek(p).kind == MDP_TOK_CHAR && peek(p).as.chr == (ch))
 
 #define node(kind, ...) _mdp_node(kind, &(MDP_Node){__VA_ARGS__})
 MDP_Node *_mdp_node(MDP_NodeKind kind, MDP_Node *node) {
@@ -387,7 +385,6 @@ void _mdp_node_append(MDP_Node **head, MDP_Node *n) {
 		*head = n;
 		return;
 	}
-
 	MDP_Node *cur = *head;
 	while (cur->next)
 		cur = cur->next;
@@ -688,7 +685,6 @@ void mdp_dump_tree(MDP_Node *n, int it, int lv) {
 #undef next
 #undef peek
 #undef peek2
-#undef is_chr
 #undef node
 
 #endif // MDP_IMPLEMENTATION
