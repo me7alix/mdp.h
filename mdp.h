@@ -80,7 +80,6 @@ struct MDP_Node {
 	MDP_NodeKind kind;
 	MDP_Node *body;
 	MDP_Node *next;
-
 	union {
 		struct {
 			unsigned level;
@@ -151,7 +150,8 @@ MDP_Token *mdp_lex(const char *stream) {
 #define append(kd, ch) \
 	_mdp_tokens_append(&toks, (MDP_Token){.kind = kd, .as.chr = ch})
 #define append_data(kd, dt) \
-	_mdp_tokens_append(&toks, (MDP_Token){.kind = kd, .as.data = dt});
+	_mdp_tokens_append(&toks, (MDP_Token){.kind = kd, .as.data = dt})
+
 #define CHN() stream[count++]
 #define CHP() stream[count]
 #define CHI(i) stream[count+i]
@@ -160,11 +160,9 @@ MDP_Token *mdp_lex(const char *stream) {
 		switch (CHP()) {
 		case '\0':
 			goto finish;
-
 		case '[':
 			append(MDP_TOK_BEG_LINK, CHN());
 			break;
-
 		case ']':
 			CHN();
 			if (CHP() != '(') {
@@ -194,7 +192,6 @@ MDP_Token *mdp_lex(const char *stream) {
 				.as.link.desc = desc.items,
 			});
 			break;
-
 		case '`':
 			CHN();
 			if (CHI(0) == '`' && CHI(1) == '`') {
@@ -235,7 +232,6 @@ MDP_Token *mdp_lex(const char *stream) {
 				});
 			}
 			break;
-
 		case '_':
 			CHN();
 			if (CHP() == '_') {
@@ -243,7 +239,6 @@ MDP_Token *mdp_lex(const char *stream) {
 			} else {
 				append(MDP_TOK_EMPHASIS, '_');
 			} break;
-
 		case '*':
 			CHN();
 			if (CHP() == '*') {
@@ -251,30 +246,25 @@ MDP_Token *mdp_lex(const char *stream) {
 			} else {
 				append(MDP_TOK_EMPHASIS, '*');
 			} break;
-
 		case '\n':
 			CHN();
 			if (CHP() == '\n') append(MDP_TOK_2NL, CHN());
 			else append(MDP_TOK_NL, '\n');
 		start:
 			while (CHP() == ' ') CHN();
-
 			switch (CHP()) {
 			case '\0':
 				goto finish;
-
 			case '#':
 				unsigned i;
 				for (i = 0; CHP() == '#'; i++) CHN();
 				append_data(MDP_TOK_HEADING, i);
 				while (CHP() == ' ') CHN();
 				break;
-
 			case '>':
 				append(MDP_TOK_QUOTE, CHN());
 				while (CHP() == ' ') CHN();
 				break;
-
 			case '*':
 				CHN();
 				if (CHP() == '*') {
@@ -284,7 +274,6 @@ MDP_Token *mdp_lex(const char *stream) {
 				}
 				while (CHP() == ' ') CHN();
 				break;
-
 			case '-':
 				if (CHI(1) == '-' && CHI(2) == '-') {
 					CHN(); CHN();
@@ -294,19 +283,16 @@ MDP_Token *mdp_lex(const char *stream) {
 				}
 				while (CHP() == ' ') CHN();
 				break;
-
 			case '!':
 				if (CHI(1) == '[') append(MDP_TOK_IMAGE, CHN());
 				else append(MDP_TOK_CHAR, CHN());
 				break;
-
 			default:
 				if (isdigit(CHP())) {
 					char str[16] = {0};
 					size_t cnt = 0;
 					while (isdigit(CHP()))
 						str[cnt++] = CHN();
-
 					if (CHP() == '.') {
 						append_data(MDP_TOK_ORD_LIST, atoi(str));
 						CHN();
@@ -319,7 +305,6 @@ MDP_Token *mdp_lex(const char *stream) {
 				}
 			}
 			break;
-
 		default:
 			append(MDP_TOK_CHAR, CHN());
 		}
